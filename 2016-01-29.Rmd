@@ -1,0 +1,200 @@
+---
+title: 'MIE237'
+author: "Neil Montgomery"
+date: "2016-01-29"
+output: 
+  ioslides_presentation: 
+    css: 'styles.css' 
+    widescreen: true 
+    transition: 0.001
+---
+\newcommand{\Var}[1]{\text{Var}\left( #1 \right)}
+\newcommand{\E}[1]{E\left( #1 \right)}
+\newcommand{\Sample}[1]{#1_1,\ldots,#1_n}
+\newcommand{\od}[2]{\overline #1_{#2\cdot}}
+\newcommand{\flist}[2]{\{#1_1, #1_2, \ldots, #1_#2\}}
+\newcommand{\samp}[2]{#1_1, #1_2, \ldots, #1_#2}
+\renewcommand{\bar}[1]{\overline{#1}}
+\newcommand{\ve}{\varepsilon}
+\newcommand{\bs}[1]{\boldsymbol{#1}}
+
+
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(fig.width = 4, fig.height = 4, fig.align = "center")
+```
+
+# Regression
+
+## Linear models 
+
+* Model: Output = Input + Noise
+
+* $Y_{i} = \beta_0 + \beta_1 x_i + \varepsilon_{i},\quad x_i\in\mathbb{R}$
+
+* $Y_{i} = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i}+ \varepsilon_{i},\quad x_{ji}\in\mathbb{R}$
+
+* $Y_{i} = \beta_0 + \beta_1 x_{1i} + \cdots + \beta_k x_{ki}+ \varepsilon_{i},\quad x_{ji}\in\mathbb{R}$
+
+In each case $\ve_i \sim N(0,\sigma^2)$.
+
+## Linear models in matrix form
+
+$$\boldsymbol{Y} = \boldsymbol X\boldsymbol{\beta}+\boldsymbol{\varepsilon}$$
+
+<div class="columns-2">
+$$\boldsymbol{Y} = \begin{bmatrix}Y_1\\\vdots\\Y_n\end{bmatrix}$$
+
+$$\boldsymbol{\beta} = 
+\begin{bmatrix}\beta_0\\\beta_1\\\vdots\\\beta_k
+\end{bmatrix}$$
+
+$$\boldsymbol{\varepsilon} = 
+\begin{bmatrix}
+\varepsilon_1\\
+\varepsilon_2\\
+\vdots\\
+\varepsilon_n\\
+\end{bmatrix}$$ 
+</div>
+
+## Linear models in matrix form
+
+$$\boldsymbol{Y} = \boldsymbol X\boldsymbol{\beta}+\boldsymbol{\varepsilon}$$
+
+$$\boldsymbol{X} = 
+\begin{bmatrix}
+1&x_{11}&x_{21}&\cdots&x_{k1}\\
+1&x_{12}&x_{22}&\cdots&x_{k2}\\
+\vdots&\vdots&\vdots&\vdots&\vdots\\
+1&x_{1n}&x_{2n}&\cdots&x_{kn}\\
+\end{bmatrix}$$
+
+## "Simple" linear regression
+
+$$Y_i = \beta_0 + \beta_1 x_i + \ve_i$$
+
+$$\ve \sim N(0,\sigma^2)$$
+
+$\beta_1$ is the "slope" parameter and $\beta_1$ is the "intercept" parameter. So there are three unknown parameters that need to be estimated using data.
+
+```{r, echo=FALSE, message=FALSE, fig.height=3}
+library(rio)
+library(dplyr)
+library(ggplot2)
+sugar <- import("Ex11.05.txt")
+sugar %>% 
+  ggplot(aes(x=Temperature, y=`Coverted-sugar`)) + geom_point() + labs(title="Exercise 11.5")
+```
+
+## Parameter interpretation
+
+<div class="columns-2">
+```{r, echo=FALSE, fig.align = "left"}
+sugar %>% 
+  ggplot(aes(x=Temperature, y=`Coverted-sugar`)) + 
+  xlim(-0.1, 2.1) + ylim(-0.1, 11.5) + 
+  geom_point() + geom_smooth(method="lm", se = FALSE)
+```
+
+The slope is the change in $y$ when $x$ changes by 1 unit.
+
+The intercept rarely matters in and of itself. 
+
+Caution: plots usually present regression data with axes rescaled to be pleasing to the eye. 
+</div>
+
+
+## Example regression results using R (ugly version)
+
+```{r, echo=FALSE}
+library(xtable)
+sugar %>% 
+  lm(`Coverted-sugar` ~ Temperature, data = .) -> sugar.lm
+summary(sugar.lm)
+```
+
+## Pretty version
+
+```{r, echo=FALSE, results='asis'}
+sugar.xt <- xtable(sugar.lm)
+print(sugar.xt, type="HTML")
+```
+
+## Preview of "correlation"
+
+Recall $\text{Cov}(X,Y) = E(X-E(X))(Y-E(Y)) = E(XY)-E(X)E(Y)$.
+
+Measures linear relationship between $X$ and $Y$.
+
+A related measure that divides by the two standard deviations:
+$$\rho = \frac{\text{Cov}(X,Y)}{\sqrt{\Var X \Var Y}}$$
+
+"Correlation coefficient"
+
+## Preview of correlation
+
+$\rho$ is a \textit{theoretical} measure of the linear relationship
+between the random variables $X$ and $Y$.
+
+We'd like an analogous *empirical* measure for *sample data*:
+
+<div class="columns-2">
+```{r, echo=FALSE, fig.align = "left"}
+sugar %>% 
+  ggplot(aes(x=Temperature, y=`Coverted-sugar`)) + 
+  geom_point() + 
+  geom_hline(yintercept = mean(sugar$`Coverted-sugar`)) + 
+  geom_vline(xintercept = mean(sugar$Temperature)) 
+  
+```
+
+We will base it on:
+
+$S_{xy}=\sum_{i=1}^n \left(x_i-\overline x\right)
+\left(y_i - \overline y\right)$
+
+(more on this later...)
+
+</div>
+
+
+## "Least squares" estimation for model parameters
+
+Model: $Y_i = \beta_0 + \beta_1 x_i + \varepsilon_i$ (Or:\  
+$\bs Y = \bs X \bs\beta + \bs \varepsilon$)
+
+Estimation method is to minimize (for $\beta_0$ and $\beta_1$) the "squared error":
+$$\sum_{i=1}^n \varepsilon_i^2 = \sum_{i=1}^n
+\left(Y_i-\beta_0-\beta_1x_i\right)^2$$
+
+More generally, minimize:
+$$\bs{\varepsilon}^\prime\bs{\varepsilon}=
+\left(\bs{Y}-\bs{X\beta}\right)^\prime\left(\bs{Y}-\bs{X\beta}\right)
+$$
+
+## Results
+
+$$\hat{\beta_1} = \frac{S_{xY}}{S_{xx}}$$ 
+
+where $S_{xx}=\sum_{i=1}^n \left(x_i-\overline x\right)^2$ (scales out the variation in the $x$ direction)
+
+and 
+
+$$\hat{\beta_0} = \bar{Y} - \hat{\beta_1} \overline x$$ 
+
+More generally:
+$$\hat{\bs\beta} = (\bs X' \bs X)^{-1}\bs X' \bs y$$ 
+where the key thing to notice is that it involves a matrix inversion.
+
+## More on $\hat\beta_1$
+
+Estimation based on the model $Y_i = \beta_0 + \beta_1 x_i + \varepsilon_i$.
+
+Other model assumptions: $\varepsilon_i$ are i.i.d. $N(0, \sigma^2)$. So the $Y_i$ are also normal, with mean $\beta_0 + \beta_1x_i$ and variance $\sigma^2$.
+
+Important to remember that $\hat\beta_1$ is a *random variable* with a distribution, mean, and variance of its own. ($\beta_0$ too.)
+
+In fact $\E{\hat\beta_1} = \beta_1$ and its variance is $\frac{\sigma^2}{S_{xx}$.
+
+
